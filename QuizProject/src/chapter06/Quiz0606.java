@@ -11,7 +11,7 @@ public class Quiz0606 {
 		int inputNum = 0;
 		int total = 0;
 		
-		double avr = 0;
+		double dAvr = 0;	//변수명에 double 타입이라는 것을 명시해주면 좋다.
 		System.out.printf("입력된 숫자는 %d 입니다\n",num);
 	
 		
@@ -22,8 +22,8 @@ public class Quiz0606 {
 			
 		}
 		
-		avr = (double)total/num;
-		System.out.printf("입력받은 숫자의 평균은 %f 입니다.", avr);
+		dAvr = (double)total/num;
+		System.out.printf("입력받은 숫자의 평균은 %f 입니다.", dAvr);
 		
 		sc.close();
 	}

@@ -11,7 +11,15 @@ public class Quiz0603 {
 		
 		int num = sc.nextInt();
 		int fact = 1;
-		
+	/*
+	 선생님의 풀이
+	 	while(num > 0) {
+	 		if(num > 0) {
+	 			System.out.print(num + " * ");
+	 			} else {
+	 			System.out.print(num + " = ");
+	 			}
+	 */ // 보이는 것을 좀 더 규칙적으로 
 		while(num>0)
 		{
 			if(num>1) {

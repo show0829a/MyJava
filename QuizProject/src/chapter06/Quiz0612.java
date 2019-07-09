@@ -5,7 +5,7 @@ public class Quiz0612 {
 
 	public static void main(String[] args) {
 		Scanner sc = new Scanner(System.in);
-		System.out.println("두 개의 정수를 입력하시오");
+		System.out.println("서로 다른 두 개의 정수를 입력하시오");
 		
 		int num1 = sc.nextInt();
 		int num2 = sc.nextInt();
