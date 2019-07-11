@@ -14,6 +14,7 @@ public class RPS_Game {
 		Scanner sc = new Scanner(System.in);
 		
 		Random computer = new Random();
+		
 		while(gameResult != 0) {
 			System.out.println("무엇을 내겠습니까 ? (1:가위 2:바위 3:보 0:종료)");
 			hNum = sc.nextInt();
@@ -83,3 +84,4 @@ public class RPS_Game {
 	}
 
 }
+//RPS 부분 로직을 표현할때 절대값이나 + 로 비교해서 할수 있다. 해보기

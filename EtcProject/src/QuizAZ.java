@@ -14,10 +14,8 @@ public class QuizAZ {
 				if(A!=Z) {		
 						if (A + Z == 9)
 							System.out.println(num1 + ", " +num2);
-					}
 				}
 			}
-		
 		}
-
+	}
 }
