@@ -9,7 +9,7 @@ public class RandomUse {
 		
 		System.out.println(randomV1.nextBoolean());
 		System.out.println(randomV1.nextFloat());
-		System.out.println(randomV1.nextInt());
+		System.out.println(randomV1.nextInt(3));
 		System.out.println(randomV1.nextInt(100));
 
 		// Type #2 : 1~100 사이의 값 출력
