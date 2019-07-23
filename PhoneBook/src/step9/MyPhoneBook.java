@@ -139,7 +139,7 @@ public class MyPhoneBook {
 	
 	public static void readInfo( ) {
 		try(BufferedReader br = new BufferedReader(new FileReader("Phone_Data.csv"))) {
-			StringTokenizer st = new StringTokenizer(br.readLine());
+			
 			
 			while(st.hasMoreTokens()) {
 				Phone
