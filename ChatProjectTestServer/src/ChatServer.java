@@ -6,6 +6,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.*;
+import java.util.concurrent.Semaphore;
 
 public class ChatServer
 {
@@ -28,6 +29,7 @@ public class ChatServer
 	 
 	Map<String, PrintWriter> clientMap;
 	Map<String, RoomInfo> roomList;
+	Map<String, User> userMap;
 	
 	class LoginStatus{
 		String name;
@@ -57,9 +59,12 @@ public class ChatServer
 		//클라이언트의 출력스트림을 저장할 해쉬맵 생성.
 		clientMap = new HashMap<String, PrintWriter>();
 		roomList = new HashMap<String, RoomInfo>();
+		userMap = new HashMap<String, User>();
 		//해쉬맵 동기화 설정.
 		Collections.synchronizedMap(clientMap);
 		Collections.synchronizedMap(roomList);
+		Collections.synchronizedMap(userMap);
+		
 	}
 	
 	class User{
@@ -97,6 +102,7 @@ public class ChatServer
 		String roomStatus;
 		String roomPW;
 		ArrayList<User> userList = new ArrayList<>();
+		int roomUserNumber = 10000;
 		
 		RoomInfo(){
 			
@@ -275,13 +281,15 @@ public class ChatServer
 				}
 			}
 			user = new User(id);
+			userMap.put(id, user);
+			
 			System.out.println("로그인 성공했습니다.");
 			CmdAndContent cc = new CmdAndContent();
 		
 			if(!roomList.containsKey("waiting room"))
-				createRoom(user, "waiting room");
+				createRoom(user, "waiting room", out , in);
 			else
-				enterRoom(user, "waiting room", out);
+				enterWaitRoom(user);
 			
 			int userListSize = roomList.get("waiting room").userList.size();
 			
@@ -301,10 +309,19 @@ public class ChatServer
 				//입력스트림이 null이 아니면 반복
 				String s = "";
 				while (in != null) {
+					
 					s = in.readLine();
 					s = URLDecoder.decode(s, "UTF-8");
 					System.out.println(s);
-					
+					if(s.equalsIgnoreCase("y") || s.equalsIgnoreCase("n"))
+					{
+						System.out.println("확인합니다." + s);
+						if(userMap.get(user.id).status.contains("invite from")) {
+							//System.out.println(user.status.substring(11, user.status.length()));
+							inviteYN(s, user.status.substring(11,user.status.length()) , user);
+							
+						}
+					}
 					if(!s.equalsIgnoreCase("/")) {
 						if(s.substring(0,1).equals("/")) {
 							cc = command(s);
@@ -314,7 +331,7 @@ public class ChatServer
 							switch(cc.cmd) {
 							case "/create":
 							{
-								createRoom(user, cc.content);
+								createRoom(user, cc.content,out, in);
 								System.out.println("방만들기");
 								if(completeOrFail) {
 									roomList.get("waiting room").userList.remove(user);
@@ -322,6 +339,7 @@ public class ChatServer
 								break;
 							}
 							case "/createpw":
+								createRoomPW(user, cc.content, out, in);
 								System.out.println("비번방만들기");
 								break;
 							case "/listroom":
@@ -331,21 +349,29 @@ public class ChatServer
 								break;
 							}
 							case "/in" :
-								enterRoom(user, cc.content, out);
+							{
+								enterRoom(user, cc.content, out, in);
 								System.out.println("방 들어가기");
 								break;
+							}
 							case "/userlistwait" :
+							{	
 								System.out.println("대기실 유저 리스트");
 								showUserListRoom("waiting room", out);
 								break;
+							}
 							case "/userlistroom" :
-								System.out.println("방 유저 리스트");
+							{
+								System.out.println("방 유저 리스트");	
 								showUserListRoom(user.roomName, out);
 								break;
+							}
 							case "/invite" :
-								invite(cc.content, out, in);
+							{
+								invite(user, cc.content, out);	
 								System.out.println("초대하기");
 								break;
+							}
 							case "/banc" :
 								System.out.println("일시적 강퇴");
 								break;
@@ -385,6 +411,9 @@ public class ChatServer
 				System.out.println("예외 mt : " + e);
 			} finally {
 				clientMap.remove(user.id);
+				userMap.remove(user.id, user);
+				roomList.get(user.roomName).userList.remove(user);
+				
 				sendAllMsg("", user.id + "님이 퇴장하셨습니다.");
 				System.out.println("현재 접속자 수는 " + clientMap.size() + "명 입니다.");
 				
@@ -403,7 +432,8 @@ public class ChatServer
 ////명령어 메소드
 	
 //	1.방만들기
-	public void createRoom(User user, String content) {
+	public void createRoom(User user, String content, PrintWriter out, BufferedReader in) {
+	try {
 		RoomInfo room = new RoomInfo(user);
 		System.out.println("방객체 생성");
 		room.roomName = content;
@@ -411,18 +441,43 @@ public class ChatServer
 		room.userList.add(user);
 		System.out.println("userlist 등록");
 		
+		if(!content.equals("waiting room")) {
+			out.println("방 정원을 입력하세요");
+			room.roomUserNumber =  Integer.parseInt(in.readLine());
+			roomList.get("waiting room").userList.remove(user);
+			}
 		roomList.put(content, room);
 		System.out.println("맵에 등록");
 		user.roomName = content;
 		System.out.println("유저 룸 네임 등록");
+		
+	} catch (IOException e) {
+		e.printStackTrace();
+	}
 	}
 //	2. 비번방 만들기	
-	public void createRoom(User user, String content, String pw) {
-		RoomInfo room = new RoomInfo(user);
-		room.roomName = content;
-		room.roomPW = pw;
-		room.userList.add(user);
-		roomList.put(content, room);
+	public void createRoomPW(User user, String content,PrintWriter out, BufferedReader in) {
+		try {
+			RoomInfo room = new RoomInfo(user);
+			room.roomName = content;
+			
+			out.println("패스워드를 입력하세요");
+			room.roomPW = in.readLine();
+			room.userList.add(user);
+			roomList.put(content, room);
+			
+			out.println("방 정원을 입력하세요");
+			room.roomUserNumber =  Integer.parseInt(in.readLine());
+			user.roomName = content;
+			System.out.println("룸이 생성되었습니다.");
+			
+			if(!content.equals("waiting room"))
+				roomList.get("waiting room").userList.remove(user);
+			
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
 	}
 //	3. 룸 리스트 보여주기
 	public void showRoomList(PrintWriter out)
@@ -448,7 +503,7 @@ public class ChatServer
 			cRoom = roomList.get(roomName);
 			//출력스트림을 순차적으로 얻어와서 해당 메세지를 출력한다.
 			System.out.println("룸 객체 생성");
-			out.println("[유저 리스트 in Room]");
+			out.println("[유저 리스트 in " + cRoom + "]");
 			
 			String userlist = "";
 			System.out.println("cRoom의 룸네임: " + cRoom.roomName);
@@ -464,19 +519,65 @@ public class ChatServer
 			e.printStackTrace();
 		}
 	}
+	//대기방 들어가기
+	public void enterWaitRoom(User user) {
+		user.roomName = "waiting room";
+		roomList.get("waiting room").userList.add(user);
+	}
 	
 	//방들어가기
-	public void enterRoom(User user, String content, PrintWriter out) {
-		
-		if(roomList.containsKey(content)) {
-			user.roomName = content;
-			roomList.get(content).userList.add(user);
+	public void enterRoom(User user, String content, PrintWriter out, BufferedReader in) {
+		String pw;
+		if(roomList.containsKey(content) && roomList.get(content).roomUserNumber > roomList.get(content).userList.size()) {
+			if(roomList.get(content).roomPW.equals("")) {
+				
+			} else {
+				out.println("패스워드를 입력하세요");
+				try {
+					pw = in.readLine();
+					if(pw.equals(roomList.get(content).roomPW)) {
+						roomList.get(user.roomName).userList.remove(user);
+						user.roomName = content;
+						roomList.get(content).userList.add(user);
+					} else
+						out.println("잘못된 패스워드입니다.");
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+				
+			}
+		} else if(roomList.get(content).roomUserNumber <= roomList.get(content).userList.size()) {
+			out.println("정원 초과 입니다.");
 		} else
-			out.println("방이 존재 하지 않습니다.");	
+			out.println("방이 존재하지 않습니다.");	
 	}
-	//초대하기
-	public void invite(String name, PrintWriter out, BufferedReader in) {
+	//초대장 
+	public void invite(User user, String toName, PrintWriter out) {
+		sendUserMsg(user.id, user.id + "의 초대에 응하시겠습니까 ? (y or n)", toName);
+		userMap.get(toName).status = "invite from" + user.id;
+		System.out.println("아웃 성공");
+	//	ivString = toName + " yes" + user.id;		
+	}
+	//초대장
+	//@SuppressWarnings("unlikely-arg-type")
+	public void inviteYN(String s, String fromName, User user) {
+		String key = s;
 		
+		if(user.roomName.equals("waiting room")) {
+			if(key.equalsIgnoreCase("y"))
+			{
+				user.roomName = userMap.get(fromName).roomName;
+				roomList.get("waiting room").userList.remove(user);
+				roomList.get(userMap.get(fromName).roomName).userList.add(user);
+				
+				user.status = "user";
+				
+			} else if(key.equalsIgnoreCase("n")) {
+				sendUserMsg(user.id, user.id + "님이 초대를 거절하셨습니다.", fromName);
+			}
+		} else {
+			sendUserMsg(user.id, "대기방이 아닙니다.", fromName);
+		}
 	}
 	//명령어 추출
 	public CmdAndContent command(String cs) {
