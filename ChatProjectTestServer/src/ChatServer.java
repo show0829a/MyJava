@@ -220,8 +220,7 @@ public class ChatServer
 				String toUserName = it.next();
 				PrintWriter it_out = (PrintWriter) clientMap.get(toUserName);
 				if(toUserName.equals(toUser))
-					it_out.println("귓속말 ["+ URLEncoder.encode(user, "UTF-8") +"] :"+
-									URLEncoder.encode(msg, "UTF-8"));
+					it_out.println(URLEncoder.encode(msg, "UTF-8"));
 			} catch(Exception e) {
 				System.out.println("예외:" + e);
 			}
@@ -247,7 +246,6 @@ public class ChatServer
 		String id;
 		
 		
-		
 		//생성자
 		public MultiServerT(Socket socket) {
 			this.socket = socket;
@@ -267,7 +265,11 @@ public class ChatServer
 		@Override
 		public void run()
 		{
+			String msgToggle = "room";
+			String toUser = "";
 			
+			boolean toToggle = false;
+			boolean wToggle	= false;
 			
 			LoginStatus ls = new LoginStatus();
 			
@@ -421,25 +423,75 @@ public class ChatServer
 								break;
 							}
 							case "/to" :
+							{
+								if(clientMap.containsKey(cc.content) && toToggle == false) {
+									toToggle = true;
+									msgToggle = "user";
+									toUser = cc.content;
+								}
+								else if(toToggle == true) {
+									toToggle = false;
+									msgToggle = "room";
+								}else
+									out.println("해당 유저는 존재하지 않습니다.");
+								
 								System.out.println("토글 귓속말하기");
 								break;
+							}
 							case "/w" :
+							{
+								if(clientMap.containsKey(cc.content) && wToggle == false) {
+									wToggle = true;
+									msgToggle = "user";
+									toUser = cc.content;
+								} else 
+									out.println("해당 유저는 존재하지 않습니다.");
 								System.out.println("1회성 귓속말 하기");
 								break;
+							}
+								
+								
 							case "/showUserInfo" :
 								showUserInfo(user, out);
 								break;
 							case "/showRoomInfo" :
 								showRoomInfo(cc.content, out);
 								break;
+							case "/all" :
+							{
+								msgToggle = "total";
+							}
 							}
 						} else {
 							if(s.equals("/list"))
 								list(out);
 							else {
-								sendAllMsg(user.id, s);
-								sendRoomUserMsg(user.roomName, s, user.id);
-								sendUserMsg(user.id, s, "test2");
+								switch(msgToggle) {
+								case "total" :
+								{
+									sendAllMsg(user.id, "전체메세지 " + s);
+									msgToggle = "room";
+									break;
+								}
+								case "user" :
+								{	
+									if(toToggle)
+										sendUserMsg(user.id, "[/to " + toUser + "] " + s, toUser);
+									else if(wToggle)
+									{
+										sendUserMsg(user.id, "[/w " + toUser + "] " + s, toUser);
+										wToggle = false;
+										msgToggle = "room";
+									}
+									else
+										sendRoomUserMsg(user.roomName, s, user.id);
+									
+									break;
+								}
+								case "room"	:
+									sendRoomUserMsg(user.roomName, s, user.id);
+									break;
+								}
 							}
 						}
 					}
@@ -628,14 +680,19 @@ public class ChatServer
 	
 	//방나가기
 	public void leaveRoom(User user) {
-		if(user.status.equals("manager")) {
+		if(user.status.equals("manager")  && roomList.get(user.roomName).userList.size() > 1) {
 			Iterator<User> it = roomList.get(user.roomName).userList.iterator();
 			if(it.hasNext()) {
 				it.next();
 				it.next().status = "manager";
-			}
+			} else
+				roomList.get(user.roomName).userList.remove(user);
+		} else if (roomList.get(user.roomName).userList.size() == 1) {
+			roomList.remove(user.roomName);
+			enterWaitRoom(user);
+			
 		}
-		roomList.get(user.roomName).userList.remove(user);
+		
 		enterWaitRoom(user);
 	}
 	
@@ -673,6 +730,10 @@ public class ChatServer
 			enterWaitRoom(it.next());
 		}
 		roomList.remove(roomName);
+	}
+	
+	public void toUserMsg(User user, String content) {
+		
 	}
 	
 	
@@ -894,7 +955,7 @@ public class ChatServer
 			con = DriverManager.getConnection(
 					"jdbc:oracle:thin:@localhost:1521:xe",
 					"scott",
-					"tiger");
+	 				"tiger");
 		} catch(Exception e) {
 			e.printStackTrace();
 		}
